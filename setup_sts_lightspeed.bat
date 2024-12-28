@@ -1,0 +1,1 @@
+powershell .\setup_sts_lightspeed.sh
