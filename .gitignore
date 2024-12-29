@@ -1,5 +1,6 @@
 .idea
 sts_lightspeed/build/
+*.ipynb
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
