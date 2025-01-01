@@ -1,5 +1,6 @@
 .idea
 .vscode
+resources
 sts_lightspeed/build/
 *.ipynb
 # Byte-compiled / optimized / DLL files

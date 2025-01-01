@@ -7,4 +7,3 @@ mv slaythespire* ../../
 cd ../
 #rm -r build
 cd ../
-timeout /t 10 /nobreak
