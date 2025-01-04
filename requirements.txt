@@ -1,2 +1,4 @@
 jupyterlab
 spirecomm @ git+https://github.com/ForgottenArbiter/spirecomm@master
+scikit-learn
+tensorflow

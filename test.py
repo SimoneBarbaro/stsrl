@@ -1,5 +1,6 @@
 import time
-
+from mcts import MCTS
+from battle_scrum import BattleScumSearcher2
 import slaythespire as sts
 
 game_string = """
@@ -24,9 +25,28 @@ if "combat_state" in game_state["game_state"]:
     bc = sts.BattleContext()
     bc.init_from_json(gc, json.dumps(game_state["game_state"]["combat_state"]))
     print(bc)
-    agent.playout_battle(bc)
+    num_simulations = 10000
+    #agent.playout_battle(bc)
+    mcts_start = time.time()
+    mcts = MCTS(num_simulations=num_simulations)
+    mcts.set_root(bc)
+    mcts.search()
+    mcts_end = time.time()
+    action = mcts.best_action()
+    action.execute(bc)
+    print(bc)
+    
     bc.exit_battle(gc)
+
+    bc = sts.BattleContext()
+    bc.init_from_json(gc, json.dumps(game_state["game_state"]["combat_state"]))
+    searcher_start = time.time()
+    searcher = BattleScumSearcher2(bc)
+    searcher.search(num_simulations)
+    searcher_end = time.time()
+
+    print(f"MCTS time: {mcts_end - mcts_start}; Searcher time: {searcher_end - searcher_start}")
 
 # gc.skip_battles = True
 
-agent.playout(gc)
+#agent.playout(gc)
