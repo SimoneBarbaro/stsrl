@@ -15,7 +15,7 @@ import time
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 logger = logging.getLogger(__name__)
-logging.basicConfig(filename=os.path.join(dir_path, "logs", f"test-communicator_{time.time()}.log"), encoding='utf-8', level=logging.DEBUG)
+logging.basicConfig(filename=os.path.join(dir_path, "logs", f"test-communicator.log"), encoding='utf-8', level=logging.DEBUG)
 logger.debug("Starting test-communicator")
 class MyCoordinator(Coordinator):
     def __init__(self):
