@@ -1,11 +1,7 @@
 import math
-import time
 import random
 
-import numpy as np
-import slaythespire as sts
-
-import concurrent.futures
+import stsrl.slaythespire as sts
 
 
 class Node:
@@ -147,9 +143,8 @@ class MCTS:
         elif state.outcome == sts.BattleOutcome.PLAYER_LOSS:
             return -1.0
         else:
-            return 0.0
             cards_in_hand = len(state.hand)
-            energy_penalty = (state.player.energy) * 0.2 if cards_in_hand > 0 else 0
+            energy_penalty = state.player.energy * 0.2 if cards_in_hand > 0 else 0
             alive_score = state.monsters_alive_count * 0.5
             return (state.player.hp / state.player.max_hp) - alive_score - energy_penalty
 

@@ -1,10 +1,9 @@
 import random
 import math
-import slaythespire as sts
+import stsrl.slaythespire as sts
 import logging
 
-#logger = logging.get#logger(__name__)
-# logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
 
 
 class MinMaxStats:
@@ -47,7 +46,8 @@ class BattleScrumEvaluator:
             energy_penalty = bc.player.energy * -0.2
             draw_bonus = bc.cards_drawn * 0.03
             alive_score = len(bc.monsters) * -1
-            return (1 - BattleScrumEvaluator.get_non_minion_monster_cur_hp_ratio(bc)) * 10 + alive_score + energy_penalty + draw_bonus + potion_score / 2 + (bc.turn * 0.2)
+            return (1 - BattleScrumEvaluator.get_non_minion_monster_cur_hp_ratio(
+                bc)) * 10 + alive_score + energy_penalty + draw_bonus + potion_score / 2 + (bc.turn * 0.2)
 
     def get_non_minion_monster_cur_hp_ratio(bc):
         cur_hp_total = 0
@@ -77,7 +77,22 @@ class BattleScumSearcher2:
         self.outcome_player_hp = 0
         self.exploration_parameter = math.sqrt(2.0)
         self.chance_sampling_breath = chance_sampling_breath
-        #logger.info("Initialized BattleScumSearcher2")
+        # logger.info("Initialized BattleScumSearcher2")
+
+    def reset(self):
+        self.search_stack = []
+        self.action_stack = []
+        self.best_action_sequence = []
+        self.min_max_stats = MinMaxStats()
+        self.outcome_player_hp = 0
+
+    def update_root(self, action):
+        for edge in self.root.edges:
+            if edge.action == action:
+                self.root = edge.node
+        logger.info(f"Attempting root update: {action.print_desc(self.root_state)}")
+        action.execute(self.root_state)
+        self.reset()
 
     def search(self, simulations):
         if self.is_terminal_state(self.root_state):
@@ -86,25 +101,37 @@ class BattleScumSearcher2:
             self.best_action_sequence = []
             self.root.evaluation_sum = evaluation
             self.root.simulation_count = 1
-            #logger.info("Terminal state reached at root with evaluation: %s", evaluation)
+            # logger.info("Terminal state reached at root with evaluation: %s", evaluation)
             return
 
-        #logger.info("Starting search with %d simulations", simulations)
+        # logger.info("Starting search with %d simulations", simulations)
         for _ in range(simulations):
             self.step()
-        #logger.info("Search completed")
+        # logger.info("Search completed")
+
+    def get_best_action(self):
+        if len(self.best_action_sequence) > 0:
+            return self.best_action_sequence[0]
+        logger.warning("No best action sequence found, check if this is a bug")
+        best_edge = None
+        best_edge_value = -float('inf')
+        for i in range(len(self.root.edges)):
+            edge_eval = self.evaluate_edge(self.root, i)
+            if edge_eval > best_edge_value:
+                best_edge = self.root.edges[i]
+        return best_edge.action if best_edge is not None else None
 
     def step(self):
         self.search_stack = [self.root]
         self.action_stack.clear()
         cur_state = sts.BattleContext(self.root_state)
-        #logger.debug("Starting new search step")
+        # logger.debug("Starting new search step")
 
         while True:
             cur_node = self.search_stack[-1]
 
             if self.is_terminal_state(cur_state):
-                #logger.debug("Terminal state reached during step, updating search tree")
+                # logger.debug("Terminal state reached during step, updating search tree")
                 self.update_from_playout(self.search_stack, self.action_stack, cur_state)
                 return
 
@@ -113,27 +140,27 @@ class BattleScumSearcher2:
                 select_idx = self.select_first_action_for_leaf_node(cur_node)
                 self.select_edge(cur_state, cur_node, select_idx)
                 self.playout_random(cur_state, self.action_stack)
-                #logger.debug("Expanded and played out leaf node, updating search tree")
+                # logger.debug("Expanded and played out leaf node, updating search tree")
                 self.update_from_playout(self.search_stack, self.action_stack, cur_state)
-                
+
                 return
             else:
                 select_idx = self.select_best_edge_to_search(cur_node)
                 self.select_edge(cur_state, cur_node, select_idx)
-                #logger.debug("Selected edge %d for further search", select_idx)
+                # logger.debug("Selected edge %d for further search", select_idx)
 
-    def select_edge(self, cur_state, cur_node:Node, select_idx:int):
+    def select_edge(self, cur_state, cur_node: Node, select_idx: int):
         edge_taken = cur_node.edges[select_idx]
         # For chance nodes action = randomize battle + deck,
         # then execute action that was left in stack from previous node
         if cur_node.is_chance:
             cur_state.randomize_rng_counters(edge_taken.action)
-            #logger.debug("Randomized RNG counters for chance node")
+            # logger.debug("Randomized RNG counters for chance node")
             cur_state.execute_actions()
         else:
             edge_taken.action.submit(cur_state)
             # If node is chance, leave action in stack instead of executing so we randomize it later
-            #logger.debug("Adding action: %s to search stack", edge_taken.action)
+            # logger.debug("Adding action: %s to search stack", edge_taken.action)
             if not edge_taken.node.is_chance:
                 cur_state.execute_actions()
         self.action_stack.append(edge_taken.action)
@@ -145,17 +172,17 @@ class BattleScumSearcher2:
                 for _ in range(self.chance_sampling_breath):
                     node.edges.append(Edge(
                         self.rand_gen.randint(1, 100), Node(is_chance=False)))
-                #logger.debug("Expanded chance node with %d edges", self.chance_sampling_breath)
+                # logger.debug("Expanded chance node with %d edges", self.chance_sampling_breath)
             else:
                 for action in cur_state.get_available_actions():
                     next_state = sts.BattleContext(cur_state)
                     action.execute(next_state)
                     is_chance = not cur_state.is_same_rng_counters(next_state)
                     node.edges.append(Edge(action, Node(is_chance=is_chance)))
-                #logger.debug("Expanded node with %d edges", len(node.edges))
+                # logger.debug("Expanded node with %d edges", len(node.edges))
 
     def update_from_playout(self, stack, action_stack, end_state):
-        #logger.debug("Evaluating action sequence: %s", action_stack)
+        # logger.debug("Evaluating action sequence: %s", action_stack)
         evaluation = self.eval_fnc(end_state)
         if evaluation > self.min_max_stats.maximum:
             self.best_action_sequence = action_stack[:]
@@ -164,7 +191,7 @@ class BattleScumSearcher2:
         for node in reversed(stack):
             node.simulation_count += 1
             node.evaluation_sum += evaluation
-        #logger.debug("Updated nodes from playout with evaluation: %s", evaluation)
+        # logger.debug("Updated nodes from playout with evaluation: %s", evaluation)
 
     def is_terminal_state(self, bc):
         return bc.outcome != sts.BattleOutcome.UNDECIDED
@@ -175,7 +202,8 @@ class BattleScumSearcher2:
         if self.best_action_sequence:
             avg_evaluation = edge.node.evaluation_sum / (edge.node.simulation_count + 1)
             quality_value = self.min_max_stats.normalize(avg_evaluation)
-        exploration_value = self.exploration_parameter * math.sqrt(math.log(parent.simulation_count + 1) / (edge.node.simulation_count + 1))
+        exploration_value = self.exploration_parameter * math.sqrt(
+            math.log(parent.simulation_count + 1) / (edge.node.simulation_count + 1))
         return quality_value + exploration_value
 
     def select_best_edge_to_search(self, cur):
