@@ -2,3 +2,22 @@ jupyterlab
 spirecomm @ git+https://github.com/ForgottenArbiter/spirecomm@master
 scikit-learn
 tensorflow
+cloudpickle>=1.2.0
+importlib_metadata>=4.8.0
+dataclasses
+typing_extensions>=4.8.0
+opencv-python>=3.0
+lz4>=3.1.0
+matplotlib>=3.6.2
+keyboard>=0.13.5
+mujoco_py<2.2,>=2.1
+imageio>=2.14.1
+jupyterlab>=3.5.2
+ipywidgets>=8.0.4
+-f https://download.pytorch.org/whl/torch_stable.html
+torch==2.3.1+cu118
+-f https://download.pytorch.org/whl/torch_stable.html
+torchvision==0.18.1+cu118
+ray>=2.6.0
+gym==0.26.2
+gymnasium==1.0.0
