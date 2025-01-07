@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class MinMaxStats:
     def __init__(self):
         self.maximum = -float('inf')
-        self.minimum = float('inf')
+        self.minimum = 0 # float('inf')
 
     def update(self, value: float):
         self.maximum = max(self.maximum, value)
@@ -27,12 +27,21 @@ class Node:
         self.simulation_count = 0
         self.evaluation_sum = 0.0
         self.is_chance = is_chance
+    def __str__(self):
+        edge_str = '\n-- '.join([str(e).replace("-- ", "---- ") for e in self.edges])
+        node_str = "{"+ f"visits: {self.simulation_count}, avg_evaluation: {self.evaluation_sum / self.simulation_count if self.simulation_count > 0 else 0}" + "}"
+        if len(self.edges) > 0:
+            node_str += "children: \n-- " + edge_str
+        return node_str
 
 
 class Edge:
-    def __init__(self, action, node):
+    def __init__(self, action, node, description=None):
         self.action = action
         self.node = node
+        self.description = description
+    def __str__(self):
+        return f"{self.description}->{str(self.node)}" if self.description else "->"+str(self.node)
 
 
 class BattleScrumEvaluator:
@@ -40,7 +49,7 @@ class BattleScrumEvaluator:
         potion_score = len(bc.potions) * 4
 
         if bc.outcome == sts.BattleOutcome.PLAYER_VICTORY:
-            return 100 * (35 + bc.player.hp + potion_score - (bc.turn * 0.01))
+            return 10 * (35 + bc.player.hp / bc.player.max_hp + potion_score - (bc.turn * 0.01))
         else:
             # could_have_spikers = bc.encounter in [sts.MonsterEncounter.THREE_SHAPES, sts.MonsterEncounter.FOUR_SHAPES]
             energy_penalty = bc.player.energy * -0.2
@@ -135,7 +144,7 @@ class BattleScumSearcher2:
                 self.update_from_playout(self.search_stack, self.action_stack, cur_state)
                 return
 
-            if not cur_node.edges:
+            if len(cur_node.edges) == 0:
                 self._expand(cur_node, cur_state)
                 select_idx = self.select_first_action_for_leaf_node(cur_node)
                 self.select_edge(cur_state, cur_node, select_idx)
@@ -145,7 +154,10 @@ class BattleScumSearcher2:
 
                 return
             else:
-                select_idx = self.select_best_edge_to_search(cur_node)
+                if cur_node.is_chance:
+                    select_idx = random.choice([i for i in range(len(cur_node.edges))])
+                else:
+                    select_idx = self.select_best_edge_to_search(cur_node)
                 self.select_edge(cur_state, cur_node, select_idx)
                 # logger.debug("Selected edge %d for further search", select_idx)
 
@@ -171,14 +183,14 @@ class BattleScumSearcher2:
             if node.is_chance:
                 for _ in range(self.chance_sampling_breath):
                     node.edges.append(Edge(
-                        self.rand_gen.randint(1, 100), Node(is_chance=False)))
+                        self.rand_gen.randint(1, 100), Node(is_chance=False), description="SampleRngCounters"))
                 # logger.debug("Expanded chance node with %d edges", self.chance_sampling_breath)
             else:
                 for action in cur_state.get_available_actions():
                     next_state = sts.BattleContext(cur_state)
                     action.execute(next_state)
                     is_chance = not cur_state.is_same_rng_counters(next_state)
-                    node.edges.append(Edge(action, Node(is_chance=is_chance)))
+                    node.edges.append(Edge(action, Node(is_chance=is_chance), description=action.print_desc(cur_state)))
                 # logger.debug("Expanded node with %d edges", len(node.edges))
 
     def update_from_playout(self, stack, action_stack, end_state):
@@ -225,6 +237,7 @@ class BattleScumSearcher2:
         return self.rand_gen.randint(0, len(leaf_node.edges) - 1)
 
     def playout_random(self, state, action_stack):
+        #logger.debug(f"Init playout at state:{state}")
         while not self.is_terminal_state(state):
             actions = state.get_available_actions()
             if len(actions) == 0:
@@ -232,4 +245,5 @@ class BattleScumSearcher2:
             selected_idx = self.rand_gen.randint(0, len(actions) - 1)
             action = actions[selected_idx]
             action_stack.append(action)
+            #logger.debug(f"submit action to playout:{action.print_desc(state)}")
             action.execute(state)

@@ -57,15 +57,16 @@ if "combat_state" in game_state:
     searcher_start = time.time()
     searcher = BattleScumSearcher2(bc)
     searcher.search(num_simulations)
+    searcher_end = time.time()
     action = searcher.best_action_sequence[0]
     print(f"python agent found: {action.print_desc(bc)}")
+    print(searcher.root)
     searcher.update_root(action)
 
     searcher.search(num_simulations)
     action = searcher.best_action_sequence[0]
     searcher.update_root(action)
 
-    searcher_end = time.time()
 
     print(f"CPP time: {cpp_end - cpp_start}; Python time: {searcher_end - searcher_start}")
 

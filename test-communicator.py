@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     try:
 
-        agent = BattleAgent()
+        agent = BattleAgent(num_simulations=100000)
         coordinator = GameCoordinator()
         coordinator.signal_ready()
         coordinator.register_command_error_callback(agent.handle_error)
