@@ -51,17 +51,17 @@ class GameManager(Game):
     @staticmethod
     def get_comm_action_from_sts_action(self, sts_action: sts.SearchAction) -> Action:
         """Convert an action from sts_ligthspeed SearchAction to spirecomm Action"""
-        if sts_action.action_type == sts.SeachActionType.END_TURN:
+        if sts_action.action_type == sts.SearchActionType.END_TURN:
             return EndTurnAction()
-        if sts_action.action_type == sts.SeachActionType.CARD:
+        if sts_action.action_type == sts.SearchActionType.CARD:
             target_idx = GameManager.find_real_target_idx(self, sts_action)
             return PlayCardAction(card_index=sts_action.source_idx, target_index=target_idx)
-        if sts_action.action_type == sts.SeachActionType.POTION:
+        if sts_action.action_type == sts.SearchActionType.POTION:
             target_idx = GameManager.find_real_target_idx(self, sts_action)
             return PotionAction(use=True, potion_index=sts_action.source_idx, target_index=target_idx)
-        if sts_action.action_type == sts.SeachActionType.SINGLE_CARD_SELECT:
+        if sts_action.action_type == sts.SearchActionType.SINGLE_CARD_SELECT:
             return ChooseAction(choice_index=sts_action.source_idx)
-        if sts_action.action_type == sts.SeachActionType.MULTI_CARD_SELECT:
+        if sts_action.action_type == sts.SearchActionType.MULTI_CARD_SELECT:
             OptionalCardSelectConfirmAction()
         raise NotImplementedError(f"We got unexpected action: {sts_action.print_desc()} for combat state {self.bc}")
 
