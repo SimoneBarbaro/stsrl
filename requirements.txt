@@ -24,3 +24,4 @@ gymnasium==1.0.0
 skrl==1.3.0
 numpy<2
 torchrl==0.4.0
+torchrl_mcts @ git+https://github.com/mjlaali/torchrl_mcts@main

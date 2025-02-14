@@ -1,15 +1,21 @@
+import logging
+import os
+
+import gymnasium as gym
 from skrl.agents.torch.a2c import A2C_DEFAULT_CONFIG
+# import the skrl components to build the RL system
+from skrl.envs.wrappers.torch import wrap_env
 from skrl.memories.torch import RandomMemory
+from skrl.utils import set_seed
 
 from stsrl.gym.agents import StsGameAgent
 from stsrl.gym.models import ActorMLP, CriticMLP
-from stsrl.gym.environments import StsBattleEnvironment, StsGameEnvironment, StsEnvironment
-import gymnasium as gym
-
-# import the skrl components to build the RL system
-from skrl.envs.wrappers.torch import wrap_env
-
 from stsrl.gym.trainer import StsTrainer
+
+logger = logging.getLogger(__name__)
+dir_path = os.path.dirname(os.path.realpath(__file__))
+logging.basicConfig(filename=os.path.join(dir_path, "logs", f"test-gym.log"),
+                    level=logging.DEBUG)
 
 
 def get_agent(env, agent_name):
@@ -27,7 +33,8 @@ def get_agent(env, agent_name):
     cfg["learning_starts"] = 5000
     cfg["experiment"]["write_interval"] = 1000
     cfg["experiment"]["checkpoint_interval"] = 5000
-    cfg["experiment"]["directory"] = "runs/test/" + agent_name
+    cfg["experiment"]["directory"] = os.path.join(dir_path, "runs/test", agent_name)
+    cfg["experiment"]["experiment_name"] = "test-a2c-mlp"
 
     # instantiate the agent
     # (assuming a defined environment <env> and memory <memory>)
@@ -43,28 +50,27 @@ def get_agent(env, agent_name):
     for model in models.values():
         model.init_parameters(method_name="normal_", mean=0.0, std=0.1)
 
-    return StsGameAgent(models=models,
-                        memory=memory,
-                        cfg=cfg,
-                        observation_space=env.observation_space,
-                        action_space=env.action_space,
-                        device=env.device)
+    # return DebugAgent(actionSequenceFile=os.path.join(dir_path, "logs", "action-sequence.log"),
+    return StsGameAgent(
+        models=models,
+        memory=memory,
+        cfg=cfg,
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+        device=env.device)
 
 
-gym.register(id="sts", entry_point=StsEnvironment)
-
-gym.register(id="sts-game", entry_point=StsGameEnvironment)
-gym.register(id="sts-battle", entry_point=StsBattleEnvironment)
+# seed for reproducibility
+set_seed(42)  # e.g. `set_seed(42)` for fixed seed
 
 env = wrap_env(gym.make('sts-game'))
 battle_env = wrap_env(gym.make('sts-battle'))
 
-# env._device = "cpu"
-# battle_env._device = "cpu"
-
+env._device = "cpu"
+battle_env._device = "cpu"
 
 # configure and instantiate the RL trainer
-cfg_trainer = {"timesteps": 50000, "headless": True}
+cfg_trainer = {"timesteps": 10000, "headless": True, "environment_info": "environment_info"}
 # trainer = SequentialTrainer(cfg=cfg_trainer, env=env, agents=[agent])
 trainer = StsTrainer(
     cfg=cfg_trainer, env=env, battle_env=battle_env, agent=get_agent(env, "game_a2c"),

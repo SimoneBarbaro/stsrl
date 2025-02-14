@@ -1,0 +1,32 @@
+{
+        "seed": 42,
+        "device": "cuda",
+        "experiment_dir": "experiments/ppo_test",
+        "log_interval": 50,
+        "checkpoint_interval": 50,
+        "model": {
+            "num_layers": 4,
+            "num_cells": 256
+        },
+        "gamma": 0.99,
+        "lmbda": 0.95,
+        "replay_size": 100000,
+        "battle_train_config": {
+            "experiment_name": "battle_only",
+            "entropy_eps": 1e-4,
+            "learning_rate": 1e-2,
+            "batch_size": 256,
+            "num_iterations": 10000,
+            "annealing_max_T": 10000,
+            "num_epochs": 10
+        },
+        "game_train_config": {
+            "experiment_name": "full_game",
+            "entropy_eps": 1e-4,
+            "learning_rate": 3e-4,
+            "batch_size": 256,
+            "num_iterations": 10000,
+            "annealing_max_T": 10000,
+            "num_epochs": 10
+        }
+    }

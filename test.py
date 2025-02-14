@@ -1,14 +1,14 @@
 """Script to test everything is working fine"""
-import os
 import json
+import logging
+import os
 import time
+
 import numpy as np
 import stsrl.slaythespire as sts
 
-from stsrl.mcts.mcts import MCTS
 from stsrl.game_encoding import StsEncodings
 from stsrl.mcts.battle_scrum import BattleScumSearcher2
-import logging
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(encoding='utf-8', level=logging.DEBUG)
@@ -66,7 +66,6 @@ if "combat_state" in game_state:
     searcher.search(num_simulations)
     action = searcher.best_action_sequence[0]
     searcher.update_root(action)
-
 
     print(f"CPP time: {cpp_end - cpp_start}; Python time: {searcher_end - searcher_start}")
 

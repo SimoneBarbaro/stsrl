@@ -22,7 +22,7 @@ if __name__ == "__main__":
         coordinator.signal_ready()
         coordinator.register_command_error_callback(agent.handle_error)
         coordinator.register_state_change_callback(agent.get_next_action_in_game)
-        #coordinator.register_out_of_game_callback(agent.get_next_action_out_of_game)
+        # coordinator.register_out_of_game_callback(agent.get_next_action_out_of_game)
 
         coordinator.play_one_game(PlayerClass.IRONCLAD, seed="3A8HJ4HRCV2A5")
     except Exception as e:
