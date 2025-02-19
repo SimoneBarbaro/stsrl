@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class MinMaxStats:
     def __init__(self):
         self.maximum = -float('inf')
-        self.minimum = 0 # float('inf')
+        self.minimum = 0  # float('inf')
 
     def update(self, value: float):
         self.maximum = max(self.maximum, value)
@@ -27,9 +27,10 @@ class Node:
         self.simulation_count = 0
         self.evaluation_sum = 0.0
         self.is_chance = is_chance
+
     def __str__(self):
         edge_str = '\n-- '.join([str(e).replace("-- ", "---- ") for e in self.edges])
-        node_str = "{"+ f"visits: {self.simulation_count}, avg_evaluation: {self.evaluation_sum / self.simulation_count if self.simulation_count > 0 else 0}" + "}"
+        node_str = "{" + f"visits: {self.simulation_count}, avg_evaluation: {self.evaluation_sum / self.simulation_count if self.simulation_count > 0 else 0}" + "}"
         if len(self.edges) > 0:
             node_str += "children: \n-- " + edge_str
         return node_str
@@ -40,11 +41,13 @@ class Edge:
         self.action = action
         self.node = node
         self.description = description
+
     def __str__(self):
-        return f"{self.description}->{str(self.node)}" if self.description else "->"+str(self.node)
+        return f"{self.description}->{str(self.node)}" if self.description else "->" + str(self.node)
 
 
 class BattleScrumEvaluator:
+    @staticmethod
     def evaluate_end_state(bc):
         potion_score = len(bc.potions) * 4
 
@@ -58,6 +61,7 @@ class BattleScrumEvaluator:
             return (1 - BattleScrumEvaluator.get_non_minion_monster_cur_hp_ratio(
                 bc)) * 10 + alive_score + energy_penalty + draw_bonus + potion_score / 2 + (bc.turn * 0.2)
 
+    @staticmethod
     def get_non_minion_monster_cur_hp_ratio(bc):
         cur_hp_total = 0
         max_hp_total = 0
@@ -237,7 +241,7 @@ class BattleScumSearcher2:
         return self.rand_gen.randint(0, len(leaf_node.edges) - 1)
 
     def playout_random(self, state, action_stack):
-        #logger.debug(f"Init playout at state:{state}")
+        # logger.debug(f"Init playout at state:{state}")
         while not self.is_terminal_state(state):
             actions = state.get_available_actions()
             if len(actions) == 0:
@@ -245,5 +249,5 @@ class BattleScumSearcher2:
             selected_idx = self.rand_gen.randint(0, len(actions) - 1)
             action = actions[selected_idx]
             action_stack.append(action)
-            #logger.debug(f"submit action to playout:{action.print_desc(state)}")
+            # logger.debug(f"submit action to playout:{action.print_desc(state)}")
             action.execute(state)

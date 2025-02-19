@@ -36,10 +36,10 @@ class Node:
         return node_str
 
     def is_expanded(self):
-        return len(self.children) > 0
+        return len(self.edges) > 0
 
     def avg_value(self, minimax: MinMaxStats) -> float:
-        return 0 if self.visits == 0 else minimax.normalize(self.value) / self.visits
+        return minimax.normalize(self.evaluation_sum / self.simulation_count if self.simulation_count > 0 else 0)
 
     def add_edge(self, edge):
         self.edges.append(edge)
@@ -55,22 +55,35 @@ class Edge:
         return f"{self.description}->{str(self.node)}" if self.description else "->" + str(self.node)
 
 
-class Environment:
-    pass
-
-
 class NodeEvaluator:
-    def evaluate_node_state(self, node_state):
+    def evaluate_node_state(self, node_state) -> float:
         pass
+
+
+class BattleNodeEval(NodeEvaluator):
+    def evaluate_node_state(self, node_state) -> float:
+        reward = 0
+        if node_state.outcome == sts.BattleOutcome.PLAYER_VICTORY:
+            reward = (1 + (node_state.player.hp / node_state.player.max_hp) + len(node_state.potions) / 5) / 3
+        elif node_state.outcome == sts.BattleOutcome.PLAYER_LOSS:
+            reward = -1
+        return reward
 
 
 class RolloutPolicy:
-    def rollout(self, state):
+    def rollout(self, state) -> any:
         pass
 
 
+class RandomRolloutPolicy(RolloutPolicy):
+    def rollout(self, state) -> any:
+        while not state.is_terminal():
+            state.execute(random.choice(state.get_available_actions()))
+        return state
+
+
 class ExplorationPolicy:
-    def exploration_bonus(self, node: Node, edge: Edge):
+    def exploration_bonus(self, node: Node, edge: Edge) -> float:
         pass
 
 
@@ -85,16 +98,20 @@ class UpperConfidenceBoundPolicy(ExplorationPolicy):
 
 class MCTS:
     def __init__(self,
-                 nodeEvaluator: NodeEvaluator,
-                 rolloutPolicy: RolloutPolicy,
-                 explorationPolicy: ExplorationPolicy,
-                 replayBuffer):
+                 nodeEvaluator: NodeEvaluator = BattleNodeEval(),
+                 rolloutPolicy: RolloutPolicy = RandomRolloutPolicy(),
+                 explorationPolicy: ExplorationPolicy = UpperConfidenceBoundPolicy(),
+                 num_rollouts=1,
+                 chance_sampling_breath=4):
         self.root = Node(is_chance=False, is_terminal=False)
-        self.state = None
+        self.state: sts.BattleContext = None
         self.nodeEvaluator = nodeEvaluator
         self.rolloutPolicy = rolloutPolicy
         self.explorationPolicy = explorationPolicy
         self.reset()
+        self.rand_gen = random
+        self.num_rollouts = num_rollouts
+        self.chance_sampling_breath = chance_sampling_breath
 
     def reset(self):
         self.min_max_stats = MinMaxStats()
@@ -103,22 +120,24 @@ class MCTS:
         self.best_action_sequence = []
 
     def set_root(self, root_state: sts.BattleContext):
-        self.root = Node(root_state)
+        self.root = Node(False, root_state.is_terminal())
         self.state = root_state
-        self._expand(self.root)
+        self._expand(self.root, root_state)
 
-    def search(self):
-        self._simulate_multiple(self.num_simulations)
+    def search(self, num_simulations):
+        self._simulate_multiple(num_simulations)
 
     def _simulate(self):
         node = self.root
         state = self.state.copy()
-        while node.is_expanded() and not node.is_terminal():
-            action = self._select(node)
-            node = node.children[action]
+        self.search_path = []
+        while node.is_expanded() and not state.is_terminal():
+            edge_idx = self._select(node, state)
+            edge = node.edges[edge_idx]
+            node = edge.node
 
             self.search_path.append(node)
-        self._expand(node)
+        self._expand(node, state)
         for _ in range(self.num_rollouts):
             reward = self._rollout(state)
             self._backpropagate(node, reward)
@@ -127,11 +146,11 @@ class MCTS:
         for _ in range(num_simulations):
             self._simulate()
 
-    def _select(self, node: Node):
+    def _select(self, node: Node, state):
         if node.is_terminal:
             return
         if not node.is_expanded():
-            self._expand(node)
+            self._expand(node, state)
 
         if len(node.edges) == 1:
             return 0
@@ -158,12 +177,9 @@ class MCTS:
         return quality_value + exploration_value
 
     def _expand(self, node, cur_state):
-        if not self.is_terminal_state(cur_state):
+        if not cur_state.is_terminal():
             if node.is_chance:
-                for _ in range(self.chance_sampling_breath):
-                    node.edges.append(Edge(
-                        self.rand_gen.randint(1, 100), Node(is_chance=False, is_terminal=False),
-                        description="SampleRngCounters"))
+                self._expand_chance_node(node)
                 # logger.debug("Expanded chance node with %d edges", self.chance_sampling_breath)
             else:
                 for action in cur_state.get_available_actions():
@@ -174,22 +190,27 @@ class MCTS:
                                            description=action.print_desc(cur_state)))
                 # logger.debug("Expanded node with %d edges", len(node.edges))
 
+    def _expand_chance_node(self, node):
+        for _ in range(self.chance_sampling_breath):
+            node.edges.append(Edge(
+                self.rand_gen.randint(1, 100), Node(is_chance=False, is_terminal=False),
+                description="SampleRngCounters"))
+
     def _rollout(self, state):
         final_state = self.rolloutPolicy.rollout(state)
         return self.nodeEvaluator.evaluate_node_state(final_state)
 
-    def _backpropagate(self, node, reward):
-        while node is not None:
-            node.visits += 1
-            node.value += reward
-            node = node.parent
+    def _backpropagate(self, node: Node, reward: float):
+        for node in self.search_path[::-1]:
+            node.simulation_count += 1
+            node.evaluation_sum += reward
 
     def best_action(self):
         # Get action with the highest value
         best_action = None
         best_value = -float('inf')
-        for action, child in self.root.children.items():
-            if child.avg_value() > best_value:
-                best_value = child.value_model
-                best_action = action
+        for child in self.root.edges:
+            if child.node.avg_value(self.min_max_stats) > best_value:
+                best_value = child.node.avg_value(self.min_max_stats)
+                best_action = child.action
         return best_action
