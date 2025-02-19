@@ -5,7 +5,7 @@ from stsrl.game_encoding import StsEncodings
 
 
 print("Input Log file:")
-logfile = "test-torchrl-battle.log"#input()
+logfile = input()
 dir_path = os.path.dirname(os.path.realpath(__file__))
 with open(f"{dir_path}/logs/{logfile}") as f:
     logs = f.readlines()
@@ -64,10 +64,10 @@ print(gc)
 actions = gc.get_available_actions()
 print("next available actions: ", [a.print_desc(gc) for a in actions])
 print(StsEncodings.encode_game(gc))
-"""bc = sts.BattleContext()
-bc.init(gc)
-print(bc)
-print(StsEncodings.encode_battle(gc, bc))
-print(bc.get_available_actions())
-print([a.print_desc(bc) for a in bc.get_available_actions()])
-"""
+if gc.screen_state == sts.ScreenState.BATTLE:
+    bc = sts.BattleContext()
+    bc.init(gc)
+    print(bc)
+    print(StsEncodings.encode_battle(gc, bc))
+    print(bc.get_available_actions())
+    print([a.print_desc(bc) for a in bc.get_available_actions()])

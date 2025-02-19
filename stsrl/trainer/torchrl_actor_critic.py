@@ -11,6 +11,7 @@ from tensordict.nn import TensorDictModule, InteractionType
 from torchrl.collectors import SyncDataCollector
 from torchrl.data import ReplayBuffer, LazyTensorStorage, SamplerWithoutReplacement
 from torchrl.modules import ProbabilisticActor, MaskedCategorical, ValueOperator
+from torchrl.trainers.trainers import Trainer
 from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value import GAE
 from torchrl.record.loggers.tensorboard import TensorboardLogger
@@ -109,7 +110,10 @@ class TorchPPOExperiment:
             path = os.path.join(self.experiment_dir, "checkpoints", f"models_latest.pt")
         modules = torch.load(path)
         for name, module in self.modules.items():
-            module.load_state_dict(modules[name])
+            try:
+                module.load_state_dict(modules[name].state_dict())
+            except KeyError:
+                logger.debug(f"Can't load module {name} from checkpoint")
 
     def _train(self, env, actor, critic, replay_buffer, train_config):
         tb_logger = TensorboardLogger(train_config["experiment_name"], log_dir=self.experiment_dir)
@@ -191,7 +195,7 @@ class TorchPPOExperiment:
                 optim.step()
                 optim.zero_grad()
             if i % self.config["log_interval"] == 0:
-                tb_logger.log_scalar("Episode length (mean)", np.mean(tracking_data["episode_len"]).item())
+                tb_logger.log_scalar("Episode length (mean)", np.mean(tracking_data["episode_len"]).item(), timestep)
                 tb_logger.log_scalar("Loss (objective)", np.mean(tracking_data["loss_objective"]).item(), timestep)
                 tb_logger.log_scalar("Loss (critic)", np.mean(tracking_data["loss_critic"]).item(), timestep)
                 tb_logger.log_scalar("Loss (entropy)", np.mean(tracking_data["loss_entropy"]).item(), timestep)
@@ -211,6 +215,8 @@ class TorchPPOExperiment:
             if i % self.config["checkpoint_interval"] == 0:
                 self._save_models(tag=train_config["experiment_name"]+"_"+str(timestep))
             scheduler.step()
+
+        self._save_models(tag=train_config["experiment_name"] + "_" + str(timestep))
 
     def train_battle(self):
         self._train("sts-battle", self.battle_actor, self.battle_critic,

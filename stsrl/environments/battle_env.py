@@ -65,7 +65,7 @@ class StsBattleEnvironment(gymnasium.Env):
             self.gc = sts.GameContext(PLAYER_CLASS, seed, ASCENSION)
             # logger.debug("Game context Reset -> %s", str(self.gc))
             self.gc.skip_battles = True
-            which_battle = random.randint(0, 30)
+            which_battle = random.randint(0, 60)
             i = 0
             while True:
                 action = random.choice(self.gc.get_available_actions())
@@ -86,6 +86,10 @@ class StsBattleEnvironment(gymnasium.Env):
 
         self.bc = sts.BattleContext()
         self.bc.init(self.gc)
+
+        if self.bc.outcome != sts.BattleOutcome.UNDECIDED:
+            return self.reset()
+
         logger.debug("Game context Reset -> %s", str(self.gc))
         logger.debug("Battle context Reset -> %s", str(self.bc))
 

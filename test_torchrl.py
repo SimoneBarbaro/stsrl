@@ -17,7 +17,7 @@ def main():
 
     experiment.init_models()
 
-    experiment.train_battle()
+    # experiment.train_battle()
 
     experiment.train_game()
 
