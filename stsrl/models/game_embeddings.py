@@ -17,15 +17,42 @@ class BattleEmbeddingModule(torch.nn.Module):
         self.card_embedding = torch.nn.Linear(370*2, card_embedding_shape, bias=False)
         self.relics_embedding = torch.nn.Linear(180, relics_embedding_shape, bias=False)
         self.potions_embedding = torch.nn.Linear(43, potions_embedding_shape, bias=False)
-        self.monster_embedding = torch.nn.Linear(34, monster_embedding_shape, bias=False)
+        self.monster_embedding = torch.nn.Linear(101, monster_embedding_shape, bias=False)
+        self.embedding_models = torch.nn.ModuleList([
+            self.player_embedding,
+            self.status_embedding,
+            self.player_info_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.potions_embedding,
+            self.relics_embedding,
+            self.monster_embedding,
+            self.monster_embedding,
+            self.monster_embedding,
+            self.monster_embedding,
+            self.monster_embedding,
+        ])
+
         self.embedding_size = player_embedding_shape + player_info_embedding_shape + status_embedding_shape + card_embedding_shape * 13 + potions_embedding_shape + relics_embedding_shape + 5 * monster_embedding_shape
 
     def forward(self, battle: torch.Tensor):
         inputs = battle.split_with_sizes(
-            [9, 86, 8, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 43, 180, 34, 34, 34, 34, 34], dim=-1)
-        return torch.cat(
+            [9, 86, 8, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 43, 180, 101, 101, 101, 101, 101], dim=-1)
+        return torch.cat([self.embedding_models[i](inputs[i]) for i in range(len(inputs))], dim=-1)
+
+        """return torch.cat(
             [
-                # TODO constants from sts lib
                 self.player_embedding.forward(inputs[0]),
                 self.status_embedding.forward(inputs[1]),
                 self.player_info_embedding.forward(inputs[2]),
@@ -51,7 +78,7 @@ class BattleEmbeddingModule(torch.nn.Module):
                 self.monster_embedding.forward(inputs[22]),
 
             ], dim=-1
-        )
+        )"""
 
 
 class GameEmbeddingModule(torch.nn.Module):
@@ -75,12 +102,32 @@ class GameEmbeddingModule(torch.nn.Module):
         self.relics_embedding = torch.nn.Linear(180, relics_embedding_shape, bias=False)
         self.potions_embedding = torch.nn.Linear(43, potions_embedding_shape, bias=False)
         self.prices_embedding = torch.nn.Linear(15, prices_embedding_shape, bias=False)
+        self.embedding_models = torch.nn.ModuleList([
+            self.player_embedding,
+            self.boss_embedding,
+            self.card_embedding,
+            self.potions_embedding,
+            self.relics_embedding,
+            self.map_embedding,
+            self.screen_embedding,
+            self.event_embedding,
+            self.relics_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.card_embedding,
+            self.potions_embedding,
+            self.prices_embedding,
+        ])
         self.embedding_size = player_embedding_shape + boss_embedding_shape + card_embedding_shape * 6 + 2*potions_embedding_shape + 2*relics_embedding_shape + map_embedding_shape + prices_embedding_shape + event_embedding_shape + screen_embedding_shape
 
     def forward(self, game: torch.Tensor):
         inputs = game.split_with_sizes(
             [4, 10, 370 * 2, 43, 180, 805, 9, 56, 180, 370 * 2, 370 * 2, 370 * 2, 370 * 2, 370 * 2, 43, 15], dim=-1)
-        return torch.cat(
+        return torch.cat([self.embedding_models[i](inputs[i]) for i in range(len(inputs))], dim=-1)
+
+        """return torch.cat(
             [
                 # TODO constants from sts lib
                 self.player_embedding.forward(inputs[0]),
@@ -100,4 +147,4 @@ class GameEmbeddingModule(torch.nn.Module):
                 self.potions_embedding.forward(inputs[14]),
                 self.prices_embedding.forward(inputs[15]),
             ], dim=-1
-        )
+        )"""
