@@ -15,12 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 class StsEnvironment(gymnasium.Env):
-    def __init__(self, config_json=None):
+    def __init__(self, config_json=None, ascension_level=0):
         self.gc = None
         self.bc = None
         self.config_json = config_json
         self.turn = -1
         self.act = 0
+        self.ascension_level = ascension_level
 
         self.observation_space = gym.spaces.Dict(
             {
@@ -64,10 +65,16 @@ class StsEnvironment(gymnasium.Env):
 
     def _get_info(self):
         return {
-            #"legal_actions": [StsEncodings.encode_battle_action(a) for a in
-            #                  self.bc.get_available_actions()] if self.is_battle() else [
-            #    StsEncodings.encode_game_action(a) for a in self.gc.get_available_actions()]
+            "legal_actions": [StsEncodings.encode_battle_action(a) for a in
+                              self.bc.get_available_actions()] if self.is_battle() else [
+                StsEncodings.encode_game_action(a) for a in self.gc.get_available_actions()]
         }
+
+    def set_state(self, gc=None, bc=None):
+        self.gc = gc
+        self.bc = bc
+        self.turn = -1
+        self.act = 0
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
         super(StsEnvironment, self).reset(seed=seed)
@@ -76,11 +83,23 @@ class StsEnvironment(gymnasium.Env):
         if self.config_json is not None:
             self.gc = sts.GameContext()
             self.gc.init_from_json(self.config_json)
+
+            # Reset starts from battle?
+            if self.is_battle():
+                self.bc = sts.BattleContext()
+                self.turn = -1
+                game_state = json.loads(self.config_json)
+                game_state = game_state["game_state"] if "game_state" in game_state else game_state
+                if "combat_state" in game_state:
+                    self.bc.init_from_json(self.gc, json.dumps(game_state))
+                else:
+                    self.bc.init(self.gc)
+
         elif options is not None and len(options) > 0:
             self.gc = sts.GameContext()
             self.gc.init_from_json(json.dumps(options))
         else:
-            self.gc = sts.GameContext(PLAYER_CLASS, seed, ASCENSION)
+            self.gc = sts.GameContext(PLAYER_CLASS, seed, self.ascension_level)
 
         logger.debug("Game context Reset -> %s", str(self.gc))
         observation = self._get_obs()

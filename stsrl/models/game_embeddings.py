@@ -1,4 +1,8 @@
 import torch
+import torch.nn
+from ray.rllib.core.models.base import Encoder, ENCODER_OUT
+from ray.rllib.core.models.configs import ModelConfig
+from ray.rllib.core.models.torch.base import TorchModel
 
 
 class BattleEmbeddingModule(torch.nn.Module):
@@ -51,35 +55,6 @@ class BattleEmbeddingModule(torch.nn.Module):
             [9, 86, 8, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 370*2, 43, 180, 101, 101, 101, 101, 101], dim=-1)
         return torch.cat([self.embedding_models[i](inputs[i]) for i in range(len(inputs))], dim=-1)
 
-        """return torch.cat(
-            [
-                self.player_embedding.forward(inputs[0]),
-                self.status_embedding.forward(inputs[1]),
-                self.player_info_embedding.forward(inputs[2]),
-                self.card_embedding.forward(inputs[3]),
-                self.card_embedding.forward(inputs[4]),
-                self.card_embedding.forward(inputs[5]),
-                self.card_embedding.forward(inputs[6]),
-                self.card_embedding.forward(inputs[7]),
-                self.card_embedding.forward(inputs[8]),
-                self.card_embedding.forward(inputs[9]),
-                self.card_embedding.forward(inputs[10]),
-                self.card_embedding.forward(inputs[11]),
-                self.card_embedding.forward(inputs[12]),
-                self.card_embedding.forward(inputs[13]),
-                self.card_embedding.forward(inputs[14]),
-                self.card_embedding.forward(inputs[15]),
-                self.potions_embedding.forward(inputs[16]),
-                self.relics_embedding.forward(inputs[17]),
-                self.monster_embedding.forward(inputs[18]),
-                self.monster_embedding.forward(inputs[19]),
-                self.monster_embedding.forward(inputs[20]),
-                self.monster_embedding.forward(inputs[21]),
-                self.monster_embedding.forward(inputs[22]),
-
-            ], dim=-1
-        )"""
-
 
 class GameEmbeddingModule(torch.nn.Module):
     def __init__(self, player_embedding_shape=4,
@@ -127,24 +102,43 @@ class GameEmbeddingModule(torch.nn.Module):
             [4, 10, 370 * 2, 43, 180, 805, 9, 56, 180, 370 * 2, 370 * 2, 370 * 2, 370 * 2, 370 * 2, 43, 15], dim=-1)
         return torch.cat([self.embedding_models[i](inputs[i]) for i in range(len(inputs))], dim=-1)
 
-        """return torch.cat(
-            [
-                # TODO constants from sts lib
-                self.player_embedding.forward(inputs[0]),
-                self.boss_embedding.forward(inputs[1]),
-                self.card_embedding.forward(inputs[2]),
-                self.potions_embedding.forward(inputs[3]),
-                self.relics_embedding.forward(inputs[4]),
-                self.map_embedding.forward(inputs[5]),
-                self.screen_embedding.forward(inputs[6]),
-                self.event_embedding.forward(inputs[7]),
-                self.relics_embedding.forward(inputs[8]),
-                self.card_embedding.forward(inputs[9]),
-                self.card_embedding.forward(inputs[10]),
-                self.card_embedding.forward(inputs[11]),
-                self.card_embedding.forward(inputs[12]),
-                self.card_embedding.forward(inputs[13]),
-                self.potions_embedding.forward(inputs[14]),
-                self.prices_embedding.forward(inputs[15]),
-            ], dim=-1
-        )"""
+
+class StsEmbeddingModuleEncoderConfig(ModelConfig):
+    output_dims = (256,)
+    freeze = False
+
+    def __init__(self, encode_battle=False, output_dim=256, num_layers=1):
+        super().__init__()
+        self.encode_battle = encode_battle
+        self.output_dims = (output_dim,)
+        self.num_layers = num_layers
+
+    def build(self, framework):
+        assert framework == "torch", "Unsupported framework `{}`!".format(framework)
+        return StsEmbeddingModuleEncoder(self)
+
+
+class StsEmbeddingModuleEncoder(TorchModel, Encoder):
+    def __init__(self, config: StsEmbeddingModuleEncoderConfig):
+        TorchModel.__init__(self, config)
+        Encoder.__init__(self, config)
+        if config.encode_battle:
+            embedding = BattleEmbeddingModule()
+        else:
+            embedding = GameEmbeddingModule()
+        self.net = torch.nn.Sequential(
+            embedding,
+            torch.nn.ReLU(),
+        )
+        self.net.append(
+            torch.nn.Linear(embedding.embedding_size, config.output_dims[0]))
+        self.net.append(
+            torch.nn.ReLU())
+        for l in range(1, config.num_layers):
+            self.net.append(
+                torch.nn.Linear(config.output_dims[0], config.output_dims[0]))
+            self.net.append(
+                torch.nn.ReLU())
+
+    def _forward(self, input_dict: dict, **kwargs) -> dict:
+        return {ENCODER_OUT: (self.net(input_dict["obs"]))}

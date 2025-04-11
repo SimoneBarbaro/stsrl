@@ -1,20 +1,23 @@
+import json
 import logging
 import os
 
 import gymnasium as gym
-import torch.nn
+import ray
+import torch
 from ray import tune, train
+from ray.rllib.algorithms import AlgorithmConfig
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.algorithms.ppo.ppo_catalog import PPOCatalog
-from ray.rllib.core.models.base import Encoder, ENCODER_OUT
 from ray.rllib.core.models.configs import ModelConfig
-from ray.rllib.core.models.torch.base import TorchModel
 from ray.rllib.core.rl_module import RLModuleSpec, MultiRLModuleSpec, MultiRLModule
 from ray.rllib.examples.rl_modules.classes.action_masking_rlm import ActionMaskingTorchRLModule
 
-from stsrl.environments.ray import HierarchicalStsEnvironment
-from stsrl.models.game_embeddings import BattleEmbeddingModule, GameEmbeddingModule
+from stsrl.environments.hierarchical_env import HierarchicalStsEnvironment
+from stsrl.models.game_embeddings import StsEmbeddingModuleEncoderConfig
+
+# Use a simple algorithm config if just evaluating MCTS, e.g., PG or use PPO/DQN
 
 logger = logging.getLogger(__name__)
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -36,54 +39,13 @@ def policy_mapping_fn(agent_id, episode, **kwargs):
         return "game_policy"
 
 
-class StsEmbeddingModuleEncoderConfig(ModelConfig):
-    output_dims = (256,)
-    freeze = False
-
-    def __init__(self, encode_battle=False, output_dim=256, num_layers=1):
-        super().__init__()
-        self.encode_battle = encode_battle
-        self.output_dims = (output_dim,)
-        self.num_layers = num_layers
-
-    def build(self, framework):
-        assert framework == "torch", "Unsupported framework `{}`!".format(framework)
-        return StsEmbeddingModuleEncoder(self)
-
-
-class StsEmbeddingModuleEncoder(TorchModel, Encoder):
-    def __init__(self, config: StsEmbeddingModuleEncoderConfig):
-        TorchModel.__init__(self, config)
-        Encoder.__init__(self, config)
-        if config.encode_battle:
-            embedding = BattleEmbeddingModule()
-        else:
-            embedding = GameEmbeddingModule()
-        self.net = torch.nn.Sequential(
-            embedding,
-            torch.nn.ReLU(),
-        )
-        self.net.append(
-            torch.nn.Linear(embedding.embedding_size, config.output_dims[0]))
-        self.net.append(
-            torch.nn.ReLU())
-        for l in range(1, config.num_layers):
-            self.net.append(
-                torch.nn.Linear(config.output_dims[0], config.output_dims[0]))
-            self.net.append(
-                torch.nn.ReLU())
-
-    def _forward(self, input_dict: dict, **kwargs) -> dict:
-        return {ENCODER_OUT: (self.net(input_dict["obs"]))}
-
-
 class BattleCatalog(PPOCatalog):
     @classmethod
     def _get_encoder_config(
-        cls,
-        observation_space: gym.Space,
-        model_config_dict: dict,
-        action_space: gym.Space = None,
+            cls,
+            observation_space: gym.Space,
+            model_config_dict: dict,
+            action_space: gym.Space = None,
     ) -> ModelConfig:
         if model_config_dict.get("custom_encoding", "False"):
             return StsEmbeddingModuleEncoderConfig(
@@ -96,10 +58,10 @@ class BattleCatalog(PPOCatalog):
 class GameCatalog(PPOCatalog):
     @classmethod
     def _get_encoder_config(
-        cls,
-        observation_space: gym.Space,
-        model_config_dict: dict,
-        action_space: gym.Space = None,
+            cls,
+            observation_space: gym.Space,
+            model_config_dict: dict,
+            action_space: gym.Space = None,
     ) -> ModelConfig:
         if model_config_dict.get("custom_encoding", "False"):
             return StsEmbeddingModuleEncoderConfig(
@@ -110,38 +72,34 @@ class GameCatalog(PPOCatalog):
 
 
 def main():
+    with open(os.path.join(dir_path, "resources", "test-save.json")) as f:
+        game_string = f.read()
+    env = HierarchicalStsEnvironment(config_json=game_string)
+    observation, info = env.reset()
+
+    ray.init()
 
     tune.register_env('sts', _env_creator)
 
     config = (
-        PPOConfig()
-        .resources(
+        PPOConfig().resources(
             num_gpus=1
-        )
-        .api_stack(
+        ).api_stack(
             enable_rl_module_and_learner=True,
             enable_env_runner_and_connector_v2=True,
-        )
-        .framework(
+        ).framework(
             framework="torch",
-        )
-        .environment(
+        ).environment(
             "sts",
             action_mask_key="legal_actions_mask"
-        )
-        .rl_module(
+        ).rl_module(
             model_config={
-                "custom_encoding": tune.grid_search([True,
-                                                     #False
-                                                     ]),
-                #"custom_encoding": tune.grid_search([True, False]),
-                #'battle_encoder_num_layers': tune.grid_search([1, 2]),
-                #'game_encoder_num_layers': tune.grid_search([1, 2]),
+                "custom_encoding": True,
                 "vf_share_layers": tune.grid_search([True, False]),
                 "head_fcnet_hiddens":
-                    [128 for l in range(4)],
+                    [128 for l in range(8)],
                     # tune.grid_search([[128 for l in range(n)] for n in [4]]),
-                "head_fcnet_activation": tune.choice(["relu", "tanh"]),
+                "head_fcnet_activation": "tanh",
             },
             # We need to explicitly specify here RLModule to use and
             # the catalog needed to build it.
@@ -162,41 +120,58 @@ def main():
         ).training(
             use_critic=True,
             use_gae=True,
-            use_kl_loss=True,  # tune.grid_search([True, False]),
+            use_kl_loss=True,
             lr=0.01,
-        ).env_runners(num_env_runners=1)
-        .debugging(
+        ).env_runners(
+            num_env_runners=1
+        ).debugging(
             log_level="DEBUG",
         ).multi_agent(
             policy_mapping_fn=policy_mapping_fn,
-            policies={"game_policy", "battle_policy"},
+            policies={
+                "game_policy",
+                "battle_policy",
+            },
+
+        ).fault_tolerance(
+            # Recreate any failed EnvRunners.
+            restart_failed_env_runners=True,
         )
     )
-    path = os.path.join(dir_path, "experiments", "ray_tune")
 
-    experiment_dir = os.path.join(path, "ppo_test_encoder")
+    path = os.path.join(dir_path, "experiments", "ray_tune")
+    experiment_name = "ppo_test_new2"
+    experiment_dir = os.path.join(path, experiment_name)
     if not tune.Tuner.can_restore(experiment_dir):
         tuner = tune.Tuner(
             "PPO",
             param_space=config,
             run_config=train.RunConfig(
-                stop={"ray/tune/env_runners/agent_episode_returns_mean/game": 1.0},
-                storage_path=path, name="ppo_test_encoder",
+                stop={"env_runners/agent_episode_returns_mean/game": 1.0},
+                storage_path=path, name=experiment_name,
                 checkpoint_config=train.CheckpointConfig(
                     checkpoint_frequency=10, checkpoint_at_end=True
                 ),
+                failure_config=train.FailureConfig(max_failures=-1)
             ),
         )
         tuner.fit()
     else:
-        tuner = tune.Tuner.restore(experiment_dir, "PPO", param_space=config, restart_errored=True)
+        tuner = tune.Tuner.restore(
+            experiment_dir, "PPO",
+            param_space=config,
+            restart_errored=True,
+        )
+        tuner.fit()
     algo = Algorithm.from_checkpoint(
         tuner.get_results()
-        .get_best_result(
+            .get_best_result(
             metric="env_runners/episode_return_mean", mode="max")
-        .checkpoint.path)
-    print(algo.get_module("game_policy"))
+            .checkpoint.path)
+    obs = {"obs": {k: torch.Tensor(observation['battle'][k]) for k in observation['battle'].keys()}}
+    print(algo.get_module("battle_policy").compute_values(obs))
 
 
 if __name__ == "__main__":
+    # mcts()
     main()

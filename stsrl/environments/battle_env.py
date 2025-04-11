@@ -19,35 +19,35 @@ class StsBattleEnvironment(gymnasium.Env):
         super().__init__()
         self.gc = None
         self.bc = None
-        # self.observation_space = gym.spaces.Box(np.zeros_like(StsEncodings.nniInstance.getBattleObservationMaximums()),
-        #                                        np.array(StsEncodings.nniInstance.getBattleObservationMaximums()))
         self.observation_space = gym.spaces.Dict(
             {
-                "battle": gym.spaces.Box(np.zeros_like(StsEncodings.nniInstance.getBattleObservationMaximums()),
-                                         np.ones_like(StsEncodings.nniInstance.getBattleObservationMaximums())),
-                "legal_actions_mask": gym.spaces.Box(
-                    np.zeros(StsEncodings.encodingInstance.battle_action_space_size),
-                    np.ones(StsEncodings.encodingInstance.battle_action_space_size)),
+                "observations": gym.spaces.Box(np.zeros_like(StsEncodings.nniInstance.getBattleObservationMaximums()),
+                                               np.ones_like(StsEncodings.nniInstance.getBattleObservationMaximums())),
+                "action_mask": gym.spaces.MultiBinary(StsEncodings.encodingInstance.battle_action_space_size),
             }
         )
 
         self.action_space = gym.spaces.Discrete(StsEncodings.encodingInstance.battle_action_space_size)
         self.turn = 0
 
+    def _get_valid_action_mask(self):
+        if self.bc.outcome != sts.GameOutcome.UNDECIDED:
+            return np.zeros(StsEncodings.encodingInstance.battle_action_space_size, dtype=bool)
+
+        return np.array(self.bc.get_valid_actions_mask(), dtype=bool)
+
     def _get_obs(self):
         return {
-            "battle": StsEncodings.encode_battle(self.gc,
-                                                 self.bc) / StsEncodings.nniInstance.getBattleObservationMaximums(),
-            "legal_actions_mask": np.array(self.bc.get_valid_actions_mask(),
-                                           dtype=bool) if self.bc.outcome == sts.BattleOutcome.UNDECIDED else np.zeros(StsEncodings.encodingInstance.battle_action_space_size, dtype=bool)
+            "observations": np.array(StsEncodings.encode_battle(
+                self.gc,
+                self.bc) / StsEncodings.nniInstance.getBattleObservationMaximums(), dtype=np.float32),
+            "action_mask": np.array(self.bc.get_valid_actions_mask(),
+                                    dtype=bool) if self.bc.outcome == sts.BattleOutcome.UNDECIDED else np.zeros(
+                StsEncodings.encodingInstance.battle_action_space_size, dtype=bool)
         }
 
     def _get_info(self):
         return {
-            "environment_info": {
-                "turn": self.bc.turn,
-                "playerHp": self.bc.player.hp,
-            },
             "legal_actions": [StsEncodings.encode_battle_action(a) for a in
                               self.bc.get_available_actions()] if self.bc.outcome == sts.BattleOutcome.UNDECIDED else []
         }
@@ -121,13 +121,45 @@ class StsBattleEnvironment(gymnasium.Env):
         reward = 0
         truncated = False
         terminated = False
-        if self.bc.outcome == sts.BattleOutcome.PLAYER_VICTORY:
-            reward = (1 + (self.bc.player.hp / self.bc.player.max_hp) + len(self.bc.potions) / 5) / 3
-            terminated = True
-        elif self.bc.outcome == sts.BattleOutcome.PLAYER_LOSS:
-            reward = -1
+        if self.bc.is_terminal():
+            logger.debug("Battle context end state -> %s", str(self.bc))
+            if self.bc.outcome == sts.BattleOutcome.PLAYER_LOSS:
+                reward = -1
+            else:
+                reward = (self.bc.player.hp / self.bc.player.max_hp) + (self.bc.player.max_hp / self.gc.max_hp - 1)
             terminated = True
         return self._get_obs(), reward, terminated, truncated, self._get_info()
 
     def render(self) -> str:
         return str(self.bc)
+
+
+class StsBattleFromSavesEnvironment(StsBattleEnvironment):
+    """Environment that plays through battles given at init."""
+
+    def __init__(self, battles):
+        """
+        :param battles: List of battles, each battle must be a json string representing the battle in the format of the communication mod
+        """
+        super().__init__()
+        self.battles = battles
+
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
+        if seed is not None:
+            random.seed(seed)
+        game_string = random.choice(self.battles)
+        self.gc = sts.GameContext()
+        self.gc.init_from_json(game_string)
+        self.bc = sts.BattleContext()
+        self.bc.init_from_json(self.gc, game_string)
+
+        logger.debug("Game context Reset -> %s", str(self.gc))
+        logger.debug("Battle context Reset -> %s", str(self.bc))
+
+        # TODO a bit of randomization of the deck/relics here?
+
+        observation = self._get_obs()
+        info = self._get_info()
+        self.turn = -1
+
+        return observation, info

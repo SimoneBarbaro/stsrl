@@ -16,6 +16,7 @@ class GameManager(Game):
         super().__init__()
         self.gc: sts.GameContext = None
         self.bc: sts.BattleContext = None
+        self.json_state: str = None
 
     @classmethod
     def from_json(cls, json_state, available_commands):
@@ -23,6 +24,7 @@ class GameManager(Game):
         game = super().from_json(json_state, available_commands)
         game.gc = sts.GameContext()
         game_str = json.dumps(json_state)
+        game.json_state = game_str
         logger.debug(f"Creating game context from: {game_str}")
         game.gc.init_from_json(game_str)
         logger.debug(f"Initialized game state from json: {game.gc}")
@@ -67,9 +69,9 @@ class GameManager(Game):
 
 
 class GameCoordinator(Coordinator):
-    """I need this coordinator to create a GameManager instead of a game object
+    """I need this coordinator to create a GameManager inside the game object
     The code otherwise is the same but we need to copy it because it's not possible to just substitute the class we create.
-    Also, this coordinator does not take orders for out of game actions"""
+    Also, this coordinator deals with the case the agent does not propose actions"""
 
     def receive_game_state_update(self, block=False, perform_callbacks=True):
         """Using the next message from Communication Mod, update the stored game state
@@ -108,9 +110,13 @@ class GameCoordinator(Coordinator):
                                 self.add_action_to_queue(new_action)
                 elif self.stop_after_run:
                     self.clear_actions()
-                # We don't perform out of game callbacks
-                #else:
-                #    new_action = self.out_of_game_callback()
-                #    self.add_action_to_queue(new_action)
+                elif self.out_of_game_callback is not None:
+                    new_action = self.out_of_game_callback()
+                    if new_action is None:
+                        logger.warning("Agent failed to propose action")
+                    else:
+                        logger.debug(f"Agent finished thinking, proposing action: {new_action}")
+                    if isinstance(new_action, Action):
+                        self.add_action_to_queue(new_action)
             return True
         return False

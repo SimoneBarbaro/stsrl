@@ -14,14 +14,14 @@ class BattleAgent(BaseAgent):
 
     def _process_combat_state(self):
         logger.info("Battle agent begin processing combat state")
-        current_bc: sts.BattleContext = self.state.bc
+        current_bc: sts.BattleContext = self.game.bc
         logger.info("Battle agent resetting search tree")
         self.searcher = sts.BattleAgent(current_bc)
         self.searcher.search(self.num_simulations)
 
     def _pick_next_action(self):
-        if self.state.in_combat:
+        if self.game.in_combat:
             action = self.searcher.best_action_sequence[0]
-            return GameManager.get_comm_action_from_sts_action(self.state, action)
+            return GameManager.get_comm_action_from_sts_action(self.game, action)
         # No action outside combat for this agent
         return None

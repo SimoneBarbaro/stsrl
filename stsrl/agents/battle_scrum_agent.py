@@ -15,16 +15,16 @@ class BattleScrumAgent(BaseAgent):
 
     def _process_combat_state(self):
         logger.info("Battle agent begin processing combat state")
-        current_bc: sts.BattleContext = self.state.bc
+        current_bc: sts.BattleContext = self.game.bc
         if self.searcher is None or current_bc.is_same_rng_counters(self.searcher.root_state):
             logger.info("Battle agent resetting search tree")
             self.searcher = BattleScumSearcher2(current_bc)
         self.searcher.search(self.num_simulations)
 
     def _pick_next_action(self):
-        if self.state.in_combat:
+        if self.game.in_combat:
             action = self.searcher.get_best_action()
             self.searcher.update_root(action)
-            return GameManager.get_comm_action_from_sts_action(self.state, action)
+            return GameManager.get_comm_action_from_sts_action(self.game, action)
         # No action outside combat for this agent
         return None

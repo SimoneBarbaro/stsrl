@@ -30,7 +30,7 @@ def main():
     game_state = game_state["game_state"] if "game_state" in game_state else game_state
     if "combat_state" in game_state:
         bc = sts.BattleContext()
-        bc.init_from_json(gc, json.dumps(game_state))
+        bc.init_from_json(gc, game_string)
         print(bc)
         enc1 = StsEncodings.encode_battle(gc, bc)
         num_simulations = 10000

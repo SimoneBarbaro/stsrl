@@ -3,6 +3,7 @@ import random
 import numpy as np
 
 import stsrl.slaythespire as sts
+from stsrl.game_encoding import StsEncodings
 
 
 class MinMaxStats:
@@ -60,6 +61,17 @@ class NodeEvaluator:
         pass
 
 
+class ValueModuleEvaluator(NodeEvaluator):
+    def __init__(self, value_module):
+        self.value_module = value_module
+
+    def evaluate_node_state(self, node_state) -> float:
+        if isinstance(node_state, sts.GameContext):
+            torch_state = StsEncodings.encode_game(node_state) / StsEncodings.nniInstance.getObservationMaximums()
+        else:
+            torch_state = StsEncodings.encode_battle(self.gc,self.bc) / StsEncodings.nniInstance.getBattleObservationMaximums()
+
+
 class BattleNodeEval(NodeEvaluator):
     def evaluate_node_state(self, node_state) -> float:
         reward = 0
@@ -79,6 +91,11 @@ class RandomRolloutPolicy(RolloutPolicy):
     def rollout(self, state) -> any:
         while not state.is_terminal():
             state.execute(random.choice(state.get_available_actions()))
+        return state
+
+
+class NoRolloutPolicy(RolloutPolicy):
+    def rollout(self, state) -> any:
         return state
 
 
