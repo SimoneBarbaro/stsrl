@@ -29,6 +29,8 @@ class StsBattleEnvironment(gymnasium.Env):
 
         self.action_space = gym.spaces.Discrete(StsEncodings.encodingInstance.battle_action_space_size)
         self.turn = 0
+        self.starting_hp = 0
+        self.prev_hp = 0
 
     def _get_valid_action_mask(self):
         if self.bc.outcome != sts.GameOutcome.UNDECIDED:
@@ -98,9 +100,14 @@ class StsBattleEnvironment(gymnasium.Env):
 
         observation = self._get_obs()
         info = self._get_info()
-        self.turn = -1
+        self._reset_internal_variables()
 
         return observation, info
+
+    def _reset_internal_variables(self):
+        self.turn = -1
+        self.starting_hp = self.bc.player.hp
+        self.prev_hp = self.starting_hp
 
     def step(self, action):
         actions = self.bc.get_available_actions()
@@ -126,8 +133,15 @@ class StsBattleEnvironment(gymnasium.Env):
             if self.bc.outcome == sts.BattleOutcome.PLAYER_LOSS:
                 reward = -1
             else:
-                reward = (self.bc.player.hp / self.bc.player.max_hp) + (self.bc.player.max_hp / self.gc.max_hp - 1)
+                reward = (self.bc.player.hp / self.starting_hp) + (self.bc.player.max_hp / self.gc.max_hp - 1)
             terminated = True
+        # Let's try some reward for progressing battle
+        elif self.turn != self.bc.turn:
+            reward += (self.bc.player.hp - self.prev_hp) / self.bc.player.max_hp
+            self.prev_hp = self.bc.player.hp
+            for m in self.bc.monsters:
+                if m.max_hp > 0:
+                    reward += 0.2 * (m.max_hp - m.hp) / m.max_hp / len(self.bc.monsters)
         return self._get_obs(), reward, terminated, truncated, self._get_info()
 
     def render(self) -> str:
@@ -160,6 +174,6 @@ class StsBattleFromSavesEnvironment(StsBattleEnvironment):
 
         observation = self._get_obs()
         info = self._get_info()
-        self.turn = -1
+        self._reset_internal_variables()
 
         return observation, info

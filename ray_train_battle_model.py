@@ -19,9 +19,9 @@ from stsrl.models.game_embeddings import StsEmbeddingModuleEncoderConfig
 
 logger = logging.getLogger(__name__)
 dir_path = os.path.dirname(os.path.realpath(__file__))
-logging.basicConfig(filename=os.path.join(dir_path, "logs", f"ray_train_battle_model.log"),
+logging.basicConfig(#filename=os.path.join(dir_path, "logs", f"ray_train_battle_model.log"),
                     level=logging.DEBUG,
-                    filemode="w", )
+                    filemode="w")
 
 
 def _env_creator(cfg):
