@@ -5,5 +5,5 @@ cd build || exit
 ninja || exit
 mv slaythespire* ../../stsrl
 cd ../
-#rm -r build
 cd ../
+pip install --force-reinstall .

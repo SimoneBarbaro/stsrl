@@ -14,7 +14,7 @@ from stsrl.gym.trainer import StsTrainer
 
 logger = logging.getLogger(__name__)
 dir_path = os.path.dirname(os.path.realpath(__file__))
-logging.basicConfig(filename=os.path.join(dir_path, "logs", f"test-gym.log"),
+logging.basicConfig(filename=os.path.join(dir_path, "../../logs", f"test-gym.log"),
                     level=logging.DEBUG)
 
 

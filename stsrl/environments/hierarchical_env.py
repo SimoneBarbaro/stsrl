@@ -63,8 +63,8 @@ class HierarchicalStsEnvironment(StsEnvironment, MultiAgentEnv):
                 self._battle_count += 1
                 self._current_battle_agent_id = f"{self._battle_agent_prefix}{self._battle_count}"
 
-                self.observation_spaces[self._current_battle_agent_id] = self.observation_spaces["battle"]
-                self.action_spaces[self._current_battle_agent_id] = self.action_spaces["battle"]
+                self.observation_spaces[self._current_battle_agent_id] = self.observation_spaces[self._current_battle_agent_id]
+                self.action_spaces[self._current_battle_agent_id] = self.action_spaces[self._current_battle_agent_id]
 
             return self._current_battle_agent_id
         else:

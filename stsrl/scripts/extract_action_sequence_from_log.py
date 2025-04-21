@@ -8,7 +8,7 @@ def main():
     print("Input Log file:")
     logfile = input()
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    with open(f"{dir_path}/logs/{logfile}") as f:
+    with open(f"{dir_path}/../../logs/{logfile}") as f:
         logs = f.readlines()
     seed = int([l.replace("\n", "") for l in logs if "seedAsLong" in l][0].split("seedAsLong: ")[-1])
     gc = sts.GameContext(sts.CharacterClass.IRONCLAD, seed, 0)
@@ -19,7 +19,7 @@ def main():
             not gc.skip_battles or ("DEBUG:stsrl.gym.environments:Game context" in l and "<GameContext: {" not in l)
             ]
     action_choices = []
-    with open(f"{dir_path}/logs/action-sequence.log", "w") as f:
+    with open(f"{dir_path}/../../logs/action-sequence.log", "w") as f:
         for l in logs:
             if "available actions" in l:
                 action_choices = l.split("actions->")[1].replace("\n", "").replace(" {", "{").split(";")

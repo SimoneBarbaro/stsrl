@@ -10,7 +10,7 @@ from stsrl.controller.game_manager import GameCoordinator
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 logger = logging.getLogger(__name__)
-logging.basicConfig(filename=os.path.join(dir_path, "logs", f"test-communicator.log"),
+logging.basicConfig(filename=os.path.join(dir_path, "../../logs", f"test-communicator.log"),
                     level=logging.DEBUG)
 
 if __name__ == "__main__":
